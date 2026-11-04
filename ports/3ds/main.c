@@ -453,11 +453,16 @@ static bool load_assets(void)
 		printf("The assets pack cannot be read.\nDelete\n  " ASSETS_FILE "\nand start again to make it anew.\n");
 		return false;
 	}
+	if (result == GAME_DATA_NO_MEMORY)
+	{
+		printf("Not enough memory for the game's data\n(about 24 MB). Close other apps and try again.\n");
+		return false;
+	}
 	source = exists(ROM_ZIP) ? ROM_ZIP : (exists(ROM_FOLDER) ? ROM_FOLDER : NULL);
 	if (!source)
 	{
-		printf("No game data.\n\nPut MAME's sonic.zip (SegaSonic The Hedgehog, Japan rev. C) in\n  " FOLDER
-			"\non the SD card and start again.\n");
+		printf("No game data.\n\nPut segasonic.assets (made on a PC: build/bin after the PC build) or\n"
+			"MAME's sonic.zip (Japan rev. C) in\n  " FOLDER "\non the SD card and start again.\n");
 		return false;
 	}
 	printf("First run: making the assets pack\nfrom %s\nThis takes a moment...\n", source);

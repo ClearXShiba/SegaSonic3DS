@@ -217,6 +217,11 @@ const char *game_rom_set_load(const char *source)
 	uint8_t *whole = read_whole(source, &size);
 	int file, copy;
 
+	if (!game_data_allocate())
+	{
+		free(whole);
+		return "not enough memory";
+	}
 	if (whole)
 	{
 		const int zip = read_zip(whole, size, chips);

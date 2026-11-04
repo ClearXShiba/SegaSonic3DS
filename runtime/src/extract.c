@@ -20,7 +20,7 @@
 
 #define PACK_VERSION   1u
 
-static uint8_t *const regions[4] = { game_program, game_tiles, game_sprites, game_sound };
+static uint8_t *regions[4];    /* (set when the pack is written: the regions may be allocated at run time) */
 
 static int put16(FILE *output, uint32_t value)
 {
@@ -43,6 +43,10 @@ const char *game_data_extract(const char *source, const char *pack)
 
 	if (problem)
 		return problem;
+	regions[0] = game_program;
+	regions[1] = game_tiles;
+	regions[2] = game_sprites;
+	regions[3] = game_sound;
 	if (!(output = fopen(pack, "wb")))
 		return "the assets pack cannot be written";
 	written = fwrite("SSAP", 1, 4, output) == 4 && put16(output, PACK_VERSION) && put16(output, 0u)

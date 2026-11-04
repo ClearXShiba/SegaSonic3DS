@@ -14,6 +14,7 @@
 #include "game/data.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define PACK_VERSION   1u
@@ -21,28 +22,61 @@
 #define KIND_FILL      1u
 #define REGIONS        4u
 
+#ifdef SONIC_DYNAMIC_DATA
+uint8_t *game_program;
+uint8_t *game_tiles;
+uint8_t *game_sprites;
+uint8_t *game_sound;
+#else
 uint8_t game_program[GAME_PROGRAM_SIZE];
 uint8_t game_tiles[GAME_TILES_SIZE];
 uint8_t game_sprites[GAME_SPRITES_SIZE];
 uint8_t game_sound[GAME_SOUND_SIZE];
+#endif
 
-static uint8_t *const regions[REGIONS] = { game_program, game_tiles, game_sprites, game_sound };
+static uint8_t *regions[REGIONS];    /* (set by bind_regions: with dynamic regions they are not constants) */
 static const uint32_t region_sizes[REGIONS] = { GAME_PROGRAM_SIZE, GAME_TILES_SIZE, GAME_SPRITES_SIZE, GAME_SOUND_SIZE };
+
+static void bind_regions(void)
+{
+	regions[0] = game_program;
+	regions[1] = game_tiles;
+	regions[2] = game_sprites;
+	regions[3] = game_sound;
+}
+
+int game_data_allocate(void)
+{
+#ifdef SONIC_DYNAMIC_DATA
+	if (!game_program)
+		game_program = (uint8_t *)malloc(GAME_PROGRAM_SIZE);
+	if (!game_tiles)
+		game_tiles = (uint8_t *)malloc(GAME_TILES_SIZE);
+	if (!game_sprites)
+		game_sprites = (uint8_t *)malloc(GAME_SPRITES_SIZE);
+	if (!game_sound)
+		game_sound = (uint8_t *)malloc(GAME_SOUND_SIZE);
+	if (!game_program || !game_tiles || !game_sprites || !game_sound)
+		return 0;
+#endif
+	bind_regions();
+	return 1;
+}
 
 /* The chips the board decodes more than once (MAME's ROM_START( sonic )): the region, where the chip's
    bytes are, how many, and where they show again */
 typedef struct
 {
-	uint8_t *region;
+	uint8_t region;    /* index in regions */
 	uint32_t from, size;
 	uint32_t to[3];
 } chip_mirror;
 
 static const chip_mirror mirrors[] = {
-	{ game_program, 0x000000u, 0x020000u, { 0x020000u, 0x040000u, 0x060000u } },    /* epr-15787c, x4 */
-	{ game_program, 0x080000u, 0x020000u, { 0x0A0000u, 0x0C0000u, 0x0E0000u } },    /* epr-15786c, x4 */
-	{ game_program, 0x100000u, 0x080000u, { 0x180000u } },                          /* the data chips, x2 */
-	{ game_sound, 0x000000u, 0x040000u, { 0x040000u, 0x080000u, 0x0C0000u } },      /* epr-15785, x4 */
+	{ 0, 0x000000u, 0x020000u, { 0x020000u, 0x040000u, 0x060000u } },    /* epr-15787c, x4 */
+	{ 0, 0x080000u, 0x020000u, { 0x0A0000u, 0x0C0000u, 0x0E0000u } },    /* epr-15786c, x4 */
+	{ 0, 0x100000u, 0x080000u, { 0x180000u } },                          /* the data chips, x2 */
+	{ 3, 0x000000u, 0x040000u, { 0x040000u, 0x080000u, 0x0C0000u } },      /* epr-15785, x4 */
 };
 
 static uint32_t little16(const uint8_t *bytes)
@@ -61,8 +95,8 @@ void game_data_mirror(void)
 
 	for (mirror = 0; mirror < sizeof(mirrors) / sizeof(mirrors[0]); mirror++)
 		for (copy = 0; copy < 3 && mirrors[mirror].to[copy] != 0u; copy++)
-			memcpy(mirrors[mirror].region + mirrors[mirror].to[copy], mirrors[mirror].region + mirrors[mirror].from,
-				mirrors[mirror].size);
+			memcpy(regions[mirrors[mirror].region] + mirrors[mirror].to[copy],
+				regions[mirrors[mirror].region] + mirrors[mirror].from, mirrors[mirror].size);
 }
 
 /* The entries of the pack at 'input', each where it goes; false when the pack is cut short or one is out
@@ -107,6 +141,11 @@ game_data_result game_data_load(const char *path)
 
 	if (!input)
 		return GAME_DATA_MISSING;
+	if (!game_data_allocate())
+	{
+		fclose(input);
+		return GAME_DATA_NO_MEMORY;
+	}
 	for (region = 0; region < REGIONS; region++)
 		memset(regions[region], 0, region_sizes[region]);
 	read = fread(head, 1, sizeof(head), input) == sizeof(head) && memcmp(head, "SSAP", 4) == 0

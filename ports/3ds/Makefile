@@ -33,9 +33,11 @@ OBJS    := $(SRCS:$(ROOT)/%.c=$(BUILD)/%.o)
 INCLUDES := $(ROOT)/runtime/include $(ROOT)/src $(ROOT)/src/sound
 ARCH     := -march=armv6k -mtune=mpcore -mfloat-abi=hard -mtp=soft
 
+# -DSONIC_DYNAMIC_DATA: the game's 24 MB of data is taken from the heap, not from .bss (the loader maps a
+# program's whole .bss before it starts)
 # -fno-strict-aliasing: the game's variables are typed lvalues over the work RAM bytes (game/support.h)
 CFLAGS  := -g -Wall -O2 -mword-relocations -fomit-frame-pointer -ffunction-sections -fno-strict-aliasing \
-           $(ARCH) -D__3DS__ -std=gnu11 $(foreach dir,$(INCLUDES),-I$(dir)) -I$(CTRULIB)/include
+           $(ARCH) -D__3DS__ -DSONIC_DYNAMIC_DATA -std=gnu11 $(foreach dir,$(INCLUDES),-I$(dir)) -I$(CTRULIB)/include
 LDFLAGS := -specs=3dsx.specs -g $(ARCH) -Wl,-Map,$(TARGET).map -L$(CTRULIB)/lib
 LIBS    := -lctru -lm
 
