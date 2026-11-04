@@ -34,7 +34,7 @@ INCLUDES := $(ROOT)/runtime/include $(ROOT)/src $(ROOT)/src/sound
 ARCH     := -march=armv6k -mtune=mpcore -mfloat-abi=hard -mtp=soft
 
 # -fno-strict-aliasing: the game's variables are typed lvalues over the work RAM bytes (game/support.h)
-CFLAGS  := -g -Wall -O2 -mword-relocation -fomit-frame-pointer -ffunction-sections -fno-strict-aliasing \
+CFLAGS  := -g -Wall -O2 -mword-relocations -fomit-frame-pointer -ffunction-sections -fno-strict-aliasing \
            $(ARCH) -D__3DS__ -std=gnu11 $(foreach dir,$(INCLUDES),-I$(dir)) -I$(CTRULIB)/include
 LDFLAGS := -specs=3dsx.specs -g $(ARCH) -Wl,-Map,$(TARGET).map -L$(CTRULIB)/lib
 LIBS    := -lctru -lm
