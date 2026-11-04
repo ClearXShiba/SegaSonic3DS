@@ -45,6 +45,7 @@
 
 #include <math.h>
 #include <setjmp.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -64,6 +65,7 @@
 #define EEPROM_FILE        FOLDER "sonic.eeprom"
 #define ROM_ZIP            FOLDER "sonic.zip"
 #define ROM_FOLDER         FOLDER "rom"
+#define LOG_FILE           FOLDER "log.txt"    /* what the port was doing, line by line: read it after a crash */
 
 /* The sdl2 port's settings, here fixed */
 #define PAD_ROLL           30.0           /* trackball counts a frame at full push */
@@ -112,6 +114,27 @@ typedef struct resampler
 } resampler;
 
 static resampler chips[3];
+
+/* ---- the log ---- */
+
+/* A line of what the port is doing, in log.txt: opened and closed every time, so a crash cannot lose it */
+static void trace(const char *format, ...)
+{
+	static int lines;
+	FILE *log;
+	va_list arguments;
+
+	if (lines++ > 500)
+		return;
+	log = fopen(LOG_FILE, lines == 1 ? "w" : "a");
+	if (!log)
+		return;
+	va_start(arguments, format);
+	vfprintf(log, format, arguments);
+	va_end(arguments);
+	fputc('\n', log);
+	fclose(log);
+}
 
 /* ---- files ---- */
 
@@ -210,8 +233,11 @@ static void put_frame(const uint32_t *pixels, int width)
 
 static void on_frame_shown(void)
 {
+	static int calls;
 	int width;
 
+	if (calls < 3)
+		trace("frame_shown #%d: start", calls + 1);
 	if (skip_next > 0)
 	{
 		skip_next--;
@@ -220,10 +246,17 @@ static void on_frame_shown(void)
 	}
 	skipped_in_row = 0;
 	s32_video_draw_frame();
+	if (calls < 3)
+		trace("frame_shown #%d: drawn, width %d", calls + 1, s32_video_frame(&width) ? width : -1);
 	put_frame(s32_video_frame(&width), width);
+	if (calls < 3)
+		trace("frame_shown #%d: put on screen", calls + 1);
 	gfxFlushBuffers();
 	gfxSwapBuffers();
 	drawn_frames++;
+	if (calls < 3)
+		trace("frame_shown #%d: swapped", calls + 1);
+	calls++;
 }
 
 /* ---- the controls ---- */
@@ -238,11 +271,15 @@ static int pad_axis(int value)
 /* the state of every control once a frame, where the board reads them */
 static void on_controls_update(void)
 {
+	static int calls;
 	s32_inputs *input = &s32_board.input;
 	circlePosition pad;
 	u32 held;
 	int roll_x, roll_y;
 
+	if (calls < 3)
+		trace("controls_update #%d", calls + 1);
+	calls++;
 	hidScanInput();
 	held = hidKeysHeld();
 	hidCircleRead(&pad);
@@ -417,7 +454,16 @@ static void wait_for_frame(void)
 
 static void on_frame_done(void)
 {
+	static int calls;
+
+	if (calls < 3)
+		trace("frame_done #%d: start (program frame %u)", calls + 1, (unsigned)program_frames());
 	play_frame();
+	if (calls < 3)
+		trace("frame_done #%d: sound played", calls + 1);
+	if (calls % 300 == 299)
+		trace("frame %d", calls + 1);
+	calls++;
 	if (!aptMainLoop())
 		longjmp(finished, 1);
 	if (program_frames() % 600 == 0)
@@ -446,6 +492,7 @@ static bool load_assets(void)
 	const char *problem;
 	const char *source;
 
+	trace("assets pack: result %d (0 loaded, 1 missing, 2 damaged, 3 no memory)", (int)result);
 	if (result == GAME_DATA_LOADED)
 		return true;
 	if (result == GAME_DATA_DAMAGED)
@@ -465,6 +512,7 @@ static bool load_assets(void)
 			"MAME's sonic.zip (Japan rev. C) in\n  " FOLDER "\non the SD card and start again.\n");
 		return false;
 	}
+	trace("first run: extracting from %s", source);
 	printf("First run: making the assets pack\nfrom %s\nThis takes a moment...\n", source);
 	gfxFlushBuffers();
 	gfxSwapBuffers();
@@ -487,10 +535,15 @@ static bool load_assets(void)
 
 static void run_game(void)
 {
+	trace("run_game: start");
 	if (!load_assets())
+	{
+		trace("run_game: no assets, leaving");
 		return;
+	}
 
 	audio_on = start_audio();
+	trace("audio: %s", audio_on ? "on" : "off");
 	if (!audio_on)
 		printf("No sound: sdmc:/3ds/dspfirm.cdc is missing\n(run DSP1 to dump it from the console).\n");
 	chips[0].step = chips[1].step = FM_RATE / OUTPUT_RATE;
@@ -506,16 +559,21 @@ static void run_game(void)
 	s32_board.frame_shown = on_frame_shown;
 	sound_chips_attach();
 	sound_cpu_attach();
+	trace("hooks set, s32_init");
 	s32_init(game_program);
+	trace("load_eeprom");
 	load_eeprom();
+	trace("program_reset");
 	program_reset();
 	program_frame_done = on_frame_done;
 
 	consoleClear();
 	printf("SegaSonic The Hedgehog\n\nSELECT coin   START start\nA/B/X/Y button   pad: trackball\nL service   L+R test\nSTART+SELECT quit\n");
 	next_frame = counted_from = svcGetSystemTick();
+	trace("program_run");
 	if (!setjmp(finished))
 		program_run();
+	trace("program_run returned");
 
 	save_eeprom();
 	if (audio_on)
@@ -537,6 +595,7 @@ int main(void)
 	Thread thread;
 	s32 priority = 0x30;
 
+	trace("main: start");
 	osSetSpeedupEnable(true);    /* a New 3DS runs at 804 MHz (it does nothing on the others) */
 	gfxInitDefault();
 	gfxSetScreenFormat(GFX_TOP, GSP_RGB565_OES);
@@ -544,17 +603,20 @@ int main(void)
 	consoleInit(GFX_BOTTOM, NULL);
 	mkdir("sdmc:/3ds", 0777);
 	mkdir(FOLDER, 0777);
+	trace("main: graphics up");
 
 	/* the game runs on a thread of its own, with a stack big enough for it */
 	svcGetThreadPriority(&priority, CUR_THREAD_HANDLE);
 	thread = threadCreate(game_thread, NULL, STACK_SIZE, priority - 1, -2, false);
+	trace("main: game thread %s (priority %d)", thread ? "started" : "NOT STARTED", (int)priority);
 	if (thread)
 	{
 		threadJoin(thread, U64_MAX);
 		threadFree(thread);
+		trace("main: game thread ended");
 	}
 	else
-		run_game();
+		printf("The game thread could not be started\n(not enough memory for its stack).\n");
 
 	printf("\nPress START to exit.\n");
 	gfxFlushBuffers();
