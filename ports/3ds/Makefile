@@ -13,7 +13,13 @@ endif
 
 include $(DEVKITARM)/3ds_rules
 
+# make SKELETON=1 builds segasonic_test.3dsx instead: ports/3ds/skeleton.c alone, to see what the console
+# lets this port do (it loads, memory, a big-stack thread, audio) with none of the game in it
+ifdef SKELETON
+TARGET := segasonic_test
+else
 TARGET := segasonic
+endif
 BUILD  := build
 ROOT   := ../..
 
@@ -27,7 +33,12 @@ APP_AUTHOR      := segasonic-decomp
 SRCDIRS := $(ROOT)/ports/3ds $(ROOT)/runtime/src \
            $(ROOT)/src $(ROOT)/src/system $(ROOT)/src/video $(ROOT)/src/engine $(ROOT)/src/stage \
            $(ROOT)/src/player $(ROOT)/src/objects $(ROOT)/src/scenes $(ROOT)/src/sound
-SRCS    := $(filter-out $(ROOT)/runtime/src/v60.c,$(foreach dir,$(SRCDIRS),$(wildcard $(dir)/*.c)))
+ifdef SKELETON
+SRCS    := $(ROOT)/ports/3ds/skeleton.c
+else
+SRCS    := $(filter-out $(ROOT)/runtime/src/v60.c $(ROOT)/ports/3ds/skeleton.c,\
+             $(foreach dir,$(SRCDIRS),$(wildcard $(dir)/*.c)))
+endif
 OBJS    := $(SRCS:$(ROOT)/%.c=$(BUILD)/%.o)
 
 INCLUDES := $(ROOT)/runtime/include $(ROOT)/src $(ROOT)/src/sound
