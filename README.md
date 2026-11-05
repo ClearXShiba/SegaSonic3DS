@@ -1,7 +1,6 @@
-# SegaSonic The Hedgehog — native port
+# SegaSonic The Hedgehog 3DS Port
 
-A reconstruction of Sega's 1993 arcade game *SegaSonic The Hedgehog* (Sega System 32) into
-platform-agnostic C — not an emulator.
+Fork and port of "[segasonic](https://github.com/cheviman/segasonic-decomp)" to the 3DS family of systems
 
 This repository stays the faithful reference: the game to play, built on it, goes on in
 [segasonic-port](https://github.com/cheviman/segasonic-port).
