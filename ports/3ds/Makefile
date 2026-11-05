@@ -73,6 +73,9 @@ LIBS    := -lctru -lm
 
 all: $(TARGET).3dsx
 
+# the icon and title are embedded in the .3dsx (without this the Homebrew Launcher shows a "?")
+_3DSXFLAGS += --smdh=$(TARGET).smdh
+
 $(TARGET).3dsx: $(TARGET).elf $(TARGET).smdh
 
 $(TARGET).elf: $(OBJS)
