@@ -24,6 +24,10 @@ endif
 else
 TARGET := segasonic
 endif
+ifdef EARLY
+# make EARLY=1: segasonic_early.3dsx, the real program whose main() only shows it was reached
+TARGET := segasonic_early
+endif
 BUILD  := build
 ROOT   := ../..
 
@@ -58,7 +62,7 @@ ARCH     := -march=armv6k -mtune=mpcore -mfloat-abi=hard -mtp=soft
 # program's whole .bss before it starts)
 # -fno-strict-aliasing: the game's variables are typed lvalues over the work RAM bytes (game/support.h)
 CFLAGS  := -g -Wall -O2 -mword-relocations -fomit-frame-pointer -ffunction-sections -fno-strict-aliasing \
-           $(ARCH) -D__3DS__ -DSONIC_DYNAMIC_DATA -std=gnu11 $(foreach dir,$(INCLUDES),-I$(dir)) -I$(CTRULIB)/include
+           $(ARCH) -D__3DS__ -DSONIC_DYNAMIC_DATA $(if $(EARLY),-DEARLY_EXIT) -std=gnu11 $(foreach dir,$(INCLUDES),-I$(dir)) -I$(CTRULIB)/include
 LDFLAGS := -specs=3dsx.specs -g $(ARCH) -Wl,-Map,$(TARGET).map -L$(CTRULIB)/lib
 ifdef FULLSIZE
 LDFLAGS += -Wl,--no-gc-sections

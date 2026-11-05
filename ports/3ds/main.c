@@ -596,6 +596,23 @@ int main(void)
 	s32 priority = 0x30;
 
 	trace("main: start");
+#ifdef EARLY_EXIT
+	/* make EARLY=1: the real program, but main() only shows it was reached (see the Makefile) */
+	gfxInitDefault();
+	consoleInit(GFX_TOP, NULL);
+	printf("segasonic early test\n\nmain() reached\nlog.txt written: %s\n\nSTART to exit\n", exists(LOG_FILE) ? "yes" : "NO");
+	while (aptMainLoop())
+	{
+		hidScanInput();
+		if (hidKeysDown() & KEY_START)
+			break;
+		gfxFlushBuffers();
+		gfxSwapBuffers();
+		gspWaitForVBlank();
+	}
+	gfxExit();
+	return 0;
+#endif
 	osSetSpeedupEnable(true);    /* a New 3DS runs at 804 MHz (it does nothing on the others) */
 	gfxInitDefault();
 	gfxSetScreenFormat(GFX_TOP, GSP_RGB565_OES);
